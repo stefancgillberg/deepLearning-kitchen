@@ -16,6 +16,21 @@ MODEL="${OLLAMA_CHAT_MODEL_ID:-${1:-$DEFAULT_MODEL}}"
 info() { printf '%s\n' "$*" >&2; }
 die() { info "Error: $*"; exit 1; }
 
+# Ensure directories where the official installer places `ollama` are on PATH for this script.
+prepend_path_dir() {
+  case ":${PATH:-}:" in
+    *":$1:"*) ;;
+    *) export PATH="$1${PATH:+:$PATH}" ;;
+  esac
+}
+
+ensure_ollama_on_path() {
+  prepend_path_dir "/usr/local/bin"
+  prepend_path_dir "/Applications/Ollama.app/Contents/Resources"
+  hash -r 2>/dev/null || true
+  command -v ollama >/dev/null 2>&1
+}
+
 ollama_api_ok() {
   curl -sf "http://127.0.0.1:11434/api/tags" >/dev/null 2>&1
 }
@@ -32,32 +47,29 @@ wait_for_ollama() {
 }
 
 ensure_ollama_installed() {
-  if command -v ollama >/dev/null 2>&1; then
+  if ensure_ollama_on_path; then
+    info "Ollama already installed ($(command -v ollama))."
     return 0
   fi
 
   local os
   os="$(uname -s)"
   case "$os" in
-    Darwin)
-      if command -v brew >/dev/null 2>&1; then
-        info "Installing Ollama via Homebrew…"
-        brew install ollama
-      else
-        die "Ollama not found and Homebrew is not installed. Install from https://ollama.com/download or install Homebrew first."
-      fi
-      ;;
-    Linux)
-      info "Installing Ollama via official install script…"
+    Darwin|Linux)
+      info "Ollama not found on PATH; downloading and installing from ollama.com…"
       curl -fsSL https://ollama.com/install.sh | sh
       ;;
     *)
-      die "Unsupported OS: $os. Install Ollama manually from https://ollama.com/download then re-run this script."
+      die "Unsupported OS: $os. Install Ollama from https://ollama.com/download"
       ;;
   esac
+
+  ensure_ollama_on_path || die "'ollama' not on PATH after install. Open a new terminal, or ensure /usr/local/bin is on PATH."
 }
 
 ensure_ollama_running() {
+  ensure_ollama_on_path || die "'ollama' command not found."
+
   if ollama_api_ok; then
     return 0
   fi
@@ -71,6 +83,9 @@ ensure_ollama_running() {
       if command -v brew >/dev/null 2>&1 && brew services list 2>/dev/null | grep -q '^ollama'; then
         brew services start ollama >/dev/null 2>&1 || true
       fi
+      if ! ollama_api_ok && [ -d "/Applications/Ollama.app" ]; then
+        open -a Ollama --args hidden 2>/dev/null || open -a Ollama 2>/dev/null || true
+      fi
       ;;
     Linux)
       if command -v systemctl >/dev/null 2>&1; then
@@ -81,7 +96,7 @@ ensure_ollama_running() {
       ;;
   esac
 
-  if command -v ollama >/dev/null 2>&1; then
+  if ! ollama_api_ok; then
     (ollama serve >/tmp/ollama-serve.log 2>&1 &) || true
   fi
 
@@ -95,7 +110,6 @@ ensure_ollama_running() {
 main() {
   info "Target model: $MODEL"
   ensure_ollama_installed
-  command -v ollama >/dev/null 2>&1 || die "'ollama' not on PATH after install. Restart your terminal and try again."
 
   ensure_ollama_running
 

@@ -6,10 +6,10 @@ To learn AI coding.
 
 [`scripts/setup_ollama.sh`](scripts/setup_ollama.sh) automates local setup:
 
-- **macOS:** installs Ollama with **Homebrew** (`brew install ollama`) if `ollama` is not on your `PATH`; otherwise asks you to install from [ollama.com/download](https://ollama.com/download).
-- **Linux:** runs the official **`curl … | sh`** installer from [ollama.com](https://ollama.com).
+- If **`ollama` is already on your `PATH`**, it skips installation and only pulls the model.
+- Otherwise **macOS and Linux:** downloads and runs Ollama’s official installer (`curl -fsSL https://ollama.com/install.sh | sh`), which fetches the app/binary and wires `/usr/local/bin/ollama` (macOS may prompt once for `sudo` to create the symlink).
 - **Other OS:** exits with a short message to install manually.
-- Tries to bring the API up at `http://127.0.0.1:11434` (`brew services start ollama` on Mac where possible, systemd where possible, otherwise backgrounds `ollama serve`).
+- Tries to bring the API up at `http://127.0.0.1:11434` (launch **Ollama.app** on macOS if needed, `brew services start ollama` when using a Brew-managed service, systemd on Linux where possible, otherwise backgrounds `ollama serve`).
 - Runs **`ollama pull`** for the chat model (default **`llama3.1:8b`**, the model used when verifying this repo).
 
 ### Usage
