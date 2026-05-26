@@ -2,6 +2,17 @@
 
 To learn AI coding.
 
+## Run the app
+
+After [Ollama setup](#ollama-setup-script) and a local venv with deps (`python3 -m venv .venv` then `pip install -e .`):
+
+```bash
+cd /path/to/deepLearning-kitchen
+./scripts/run_semantic_kitchen.sh
+```
+
+Same as `source .venv/bin/activate` then `python -m semantic_kitchen`.
+
 ## Ollama setup script
 
 [`scripts/setup_ollama.sh`](scripts/setup_ollama.sh) automates local setup:

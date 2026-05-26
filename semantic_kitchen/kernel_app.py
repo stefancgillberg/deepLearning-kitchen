@@ -12,14 +12,17 @@ from semantic_kernel.connectors.ai.ollama import (
 from semantic_kernel.contents import ChatHistory
 from semantic_kernel.functions import KernelArguments
 
+# Matches README / scripts/setup_ollama.sh default when omitted from env / .env
+_DEFAULT_OLLAMA_CHAT_MODEL_ID = "llama3.1:8b"
+
 
 class SemanticKernelApp:
     """
     Thin wrapper around Semantic Kernel backed by a **local Ollama** chat model.
 
     Configuration:
-    - Required: ``OLLAMA_CHAT_MODEL_ID`` or the ``ai_model_id`` constructor argument
-      (the name of a model you have pulled in Ollama, e.g. ``llama3.2``).
+    - Model: ``OLLAMA_CHAT_MODEL_ID``, ``ai_model_id=``, or default ``llama3.1:8b``
+      (must match a model you have pulled; see ``ollama list``).
     - Optional: ``OLLAMA_HOST`` or ``host`` kwarg (defaults to Ollama's local URL).
     """
 
@@ -31,18 +34,15 @@ class SemanticKernelApp:
         dotenv_path: str | os.PathLike[str] | None = None,
     ) -> None:
         load_dotenv(dotenv_path)
-        model_id = ai_model_id or os.getenv("OLLAMA_CHAT_MODEL_ID")
-        if not model_id or not str(model_id).strip():
-            raise ValueError(
-                "Set OLLAMA_CHAT_MODEL_ID in the environment (or .env), or pass ai_model_id= "
-                "to SemanticKernelApp (e.g. a model name from `ollama list`)."
-            )
+        from_env_or_arg = ai_model_id if ai_model_id is not None else os.getenv("OLLAMA_CHAT_MODEL_ID")
+        stripped = str(from_env_or_arg).strip() if from_env_or_arg is not None else ""
+        model_id = stripped or _DEFAULT_OLLAMA_CHAT_MODEL_ID
         resolved_host = host if host is not None else os.getenv("OLLAMA_HOST")
         self.kernel = Kernel()
         self.kernel.add_service(
             OllamaChatCompletion(
                 service_id="chat",
-                ai_model_id=model_id.strip(),
+                ai_model_id=model_id,
                 host=resolved_host,
             )
         )
