@@ -7,6 +7,9 @@
 #   ./scripts/setup_ollama.sh llama3.1:8b
 #
 # Default model matches the one exercised during local verification (see .env.example).
+#
+# Linux: the official installer may require sudo when writing to /usr/local/bin.
+# systemd: tries system + user units, then SysV-style `service`; falls back to `ollama serve` in background.
 
 set -euo pipefail
 
@@ -25,8 +28,18 @@ prepend_path_dir() {
 }
 
 ensure_ollama_on_path() {
+  prepend_path_dir "/usr/local/sbin"
   prepend_path_dir "/usr/local/bin"
-  prepend_path_dir "/Applications/Ollama.app/Contents/Resources"
+  prepend_path_dir "/usr/bin"
+  prepend_path_dir "$HOME/.local/bin"
+  prepend_path_dir "/snap/bin"
+
+  local os
+  os="$(uname -s)"
+  if [ "$os" = Darwin ]; then
+    prepend_path_dir "/Applications/Ollama.app/Contents/Resources"
+  fi
+
   hash -r 2>/dev/null || true
   command -v ollama >/dev/null 2>&1
 }
@@ -52,6 +65,8 @@ ensure_ollama_installed() {
     return 0
   fi
 
+  command -v curl >/dev/null 2>&1 || die "curl is required. Install curl, then retry."
+
   local os
   os="$(uname -s)"
   case "$os" in
@@ -64,7 +79,7 @@ ensure_ollama_installed() {
       ;;
   esac
 
-  ensure_ollama_on_path || die "'ollama' not on PATH after install. Open a new terminal, or ensure /usr/local/bin is on PATH."
+  ensure_ollama_on_path || die "'ollama' not on PATH after install. Ensure /usr/local/bin or ~/.local/bin is on PATH, open a new shell, then retry."
 }
 
 ensure_ollama_running() {
@@ -89,22 +104,35 @@ ensure_ollama_running() {
       ;;
     Linux)
       if command -v systemctl >/dev/null 2>&1; then
-        systemctl --user start ollama.service >/dev/null 2>&1 \
-          || sudo systemctl start ollama >/dev/null 2>&1 \
+        # Typical install layouts: systemd system unit named ollama or ollama.service; less often user-session service.
+        sudo systemctl start ollama >/dev/null 2>&1 \
+          || sudo systemctl start ollama.service >/dev/null 2>&1 \
+          || systemctl --user start ollama >/dev/null 2>&1 \
+          || systemctl --user start ollama.service >/dev/null 2>&1 \
           || true
+      fi
+      if command -v service >/dev/null 2>&1; then
+        sudo service ollama start >/dev/null 2>&1 || true
       fi
       ;;
   esac
 
   if ! ollama_api_ok; then
-    (ollama serve >/tmp/ollama-serve.log 2>&1 &) || true
+    (OLLAMA_HOST=127.0.0.1:11434 ollama serve >/tmp/ollama-serve.log 2>&1 &) || true
   fi
 
   if wait_for_ollama; then
     return 0
   fi
 
-  die "Could not reach Ollama at http://127.0.0.1:11434. Start it manually (macOS: open the Ollama app or run 'ollama serve'), then run: ollama pull $MODEL"
+  local hint
+  case "$(uname -s)" in
+    Darwin) hint="Open the Ollama app from Applications, run 'brew services start ollama', or run 'ollama serve' in another terminal." ;;
+    Linux) hint="Run 'sudo systemctl start ollama' if you use systemd; otherwise run 'ollama serve' in another terminal." ;;
+    *) hint="Start the Ollama service or run 'ollama serve', then retry." ;;
+  esac
+
+  die "Could not reach Ollama at http://127.0.0.1:11434. $hint Run: ollama pull $MODEL"
 }
 
 main() {
